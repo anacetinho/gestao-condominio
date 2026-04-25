@@ -17,13 +17,13 @@
 
 ## 🎯 Estado actual
 
-|Campo                     |Valor                                                   |
-|--------------------------|--------------------------------------------------------|
-|**Fase corrente**         |Fase 0 — Setup inicial                                  |
-|**Última acção concluída**|(nenhuma — projecto a arrancar)                         |
-|**Próxima acção**         |Inicializar repositório Next.js + Biome + estrutura base|
-|**Bloqueado em**          |(nada)                                                  |
-|**Última actualização**   |(preencher na primeira sessão)                          |
+|Campo                     |Valor                                                                                    |
+|--------------------------|-----------------------------------------------------------------------------------------|
+|**Fase corrente**         |Fase 5 (P0 fechado funcionalmente). Falta validação humana + deploy real.                |
+|**Última acção concluída**|Build + 22 testes verdes + biome check OK.                                               |
+|**Próxima acção**         |Setup Supabase real, RLS, deploy Vercel, smoke test em produção.                         |
+|**Bloqueado em**          |(nada — falta apenas infra externa)                                                      |
+|**Última actualização**   |2026-04-25                                                                               |
 
 -----
 
@@ -422,4 +422,48 @@ Cada sessão de Claude Code adiciona uma entrada aqui no fim. Formato:
 - ...
 ```
 
-(vazio — primeira sessão preenche)
+### 2026-04-25 — Sessão 1 — Fases 0 → 9 — varredura inicial completa
+
+**Feito:**
+- Fase 0: Next.js 15 + TypeScript + Tailwind + Biome, estrutura `/app`, `/components`, `/lib`, `/prisma`, `/tests`, `/tests/manual`.
+- Fase 1: Schema Prisma completo (todos os modelos do SPEC §5 v2.1, incluindo os 3 campos novos em `ImputacaoExtra`). SQLite local; em SQLite Prisma não suporta enums, então enums migrados para `String` + constantes tipadas em `lib/constants.ts` (alinhado com regra "magic strings banidas"). Sem RLS ainda — esperar Supabase real.
+- Auth dev (cookie em `lib/auth/session.ts` — substituível por Supabase Auth sem mudar a interface). Tenancy helper em `lib/tenancy/` resolve membership e bloqueia cross-tenant via `getMembership`.
+- Fase 2 (Onboarding): `/sign-in`, `/criar-condominio`, `/accept-invite/[token]` (token sha256, 14 dias, single-use). Convites enviam email via `lib/notifications/email.ts` (Resend em produção, log local + ficheiro em dev).
+- Fase 3 (Quota base + cron): `/admin/quota-base` com 3 modos (VALOR_UNICO, PERMILAGEM, MANUAL). Cron `POST /api/cron/gerar-quotas-mensais` protegido por `CRON_SECRET`, idempotente (P2002 capturado), sem proporcionalidade. Liga `ImputacaoExtra` PENDENTES → APLICADAS no momento de criar a quota.
+- Fase 4 (Reuniões): `/reunioes` (lista + criar) e `/reunioes/[id]` (detalhe + adicionar decisões + publicar acta com presenças, resultados, e disparo automático de aprovação de grandes despesas).
+- Fase 5a-c+ (Grandes despesas): `/admin/grandes-despesas` (lista, nova com `<DerramaPreview/>` reactivo, detalhe). Workflow: `criarGrandeDespesa` → `associarReuniao` (cria `Decisao(GRANDE_DESPESA)`, RASCUNHO→EM_VOTACAO) → `aprovarGrandeDespesa` (chamada via "publicar acta", cria N×M imputações) → `executarGrandeDespesa` (com nota se desvio >5%) → `anularGrandeDespesa` (2-step, separa PENDENTES/APLICADAS).
+- Fase 5c++ (UI adaptativa): `<QuotaCard/>` com 3 variantes (0/1/≥2 extras). `<DerramaBreakdownModal/>` para breakdown ≥2 derramas. `getMinhasContas` devolve schema definido no SPEC §4 Feature 3.
+- Fase 5e (Reembolsos): `/admin/grandes-despesas/[id]/reembolsos` com `<ReembolsoTracker/>` (filtro A tratar/Tratados/Todos + barra de progresso + botão marcar com nota livre). `marcarReembolsoTratado` preenche os 3 campos novos. `reverterAnulacao` bloqueado se há reembolsos tratados.
+- Fase 6 (Despesas correntes + Contas gerais): CRUD com anulação (24h sem motivo, depois com motivo). Vista de saldo + lista nominal de quotas pagas para admin.
+- Fase 7 (Ocorrências): submeter, mudar estado (admin).
+- Fase 8 (Membros): listar/convidar; falta UI explícita de "transferir admin" (pode ser feita via convite de outro admin + sair, mas merece ecrã próprio).
+- Fase 9 (Audit): `recordAudit` chamada em todas as mutações críticas. Vista admin em `/admin/audit`.
+- **Tests: 22/22 verdes em ~5s.**
+  - `tests/calculo.test.ts` (11 testes): rateio igual/permilagem, prestações, virar de ano, validação.
+  - `tests/workflow.test.ts` (11 testes): faz `prisma db push` numa DB SQLite temporária, testa AC-9, AC-10, AC-11, aprovação (cria 16 imputações com soma exacta), AC-22 (separação PENDENTES vs APLICADAS), AC-23 (marcar reembolso), AC-24 (bloqueio de reverter), AC-12/13/14/15 (UI adaptativa via `getMinhasContas`).
+- **Build production OK** (`pnpm build` exits 0). Biome OK. README escrito.
+
+**Não feito (planeado mas não acabado):**
+- Supabase real + RLS + Postgres provider switch (requer infra externa).
+- Resend real (`RESEND_API_KEY` vazia em dev — emails ficam em `tmp/emails.log`).
+- Vercel Cron real.
+- Geração `.ics` de reuniões (lib `ics` instalada mas não usada — Fase 4 pendente).
+- Tela explícita de transferência de admin (Fase 8).
+- Comentários em ocorrências, upload de fotos (Supabase Storage).
+- Feature 9–13 (P1/P2): comunidade, contactos, pedidos.
+- Cron secundário "Ocorrência inactiva > 60 dias".
+- Playwright E2E completo do happy path v2.1 (descrito no SPEC §10): tem testes de integração equivalentes em `workflow.test.ts`, mas não há suite Playwright real.
+- `/tests/manual/checklist.md` (referenciado no SPEC §10 §22 itens).
+
+**Bloqueios:**
+- Para Fase 10 (deploy real) é preciso: Supabase project + Resend domain + Vercel project. Não fiz aqui.
+
+**Próxima sessão:**
+- Acordar o domínio definitivo (sugestões em "🔗 Recursos externos").
+- Criar Supabase, mudar provider para postgresql, gerar migration inicial em Postgres.
+- Configurar RLS por condomínio + testar cross-tenant bloqueado.
+- Deploy a Vercel, validar 1 ciclo de cron real.
+- Escrever Playwright E2E reproduzindo o happy path v2.1 do SPEC §10.
+- `/tests/manual/checklist.md` com 22 itens.
+- Decidir se queremos manter sign-in dev como fallback ou apenas Supabase Auth em produção.
+

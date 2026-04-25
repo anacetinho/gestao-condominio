@@ -1,0 +1,324 @@
+// Schema v2.1 — ver SPEC.md §5
+// Em desenvolvimento local usamos SQLite. Em produção (Supabase) é Postgres.
+// SQLite não suporta enums Prisma; usamos String com constantes tipadas em /lib/constants.ts.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// Tenancy
+// ============================================================
+
+model Condominio {
+  id        String   @id @default(cuid())
+  nome      String
+  morada    String
+  nif       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fracoes            Fracao[]
+  memberships        Membership[]
+  configuracoesQuota ConfiguracaoQuota[]
+  quotasMensais      QuotaMensal[]
+  despesasCorrentes  DespesaCorrente[]
+  grandesDespesas    GrandeDespesa[]
+  reunioes           Reuniao[]
+  ocorrencias        Ocorrencia[]
+  convites           Convite[]
+  auditLogs          AuditLog[]
+}
+
+model Fracao {
+  id            String   @id @default(cuid())
+  condominioId  String
+  identificador String
+  permilagem    Int
+  createdAt     DateTime @default(now())
+
+  condominio    Condominio       @relation(fields: [condominioId], references: [id], onDelete: Cascade)
+  memberships   Membership[]
+  quotasMensais QuotaMensal[]
+  imputacoes    ImputacaoExtra[]
+
+  @@unique([condominioId, identificador])
+  @@index([condominioId])
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  nome      String
+  telefone  String?
+  createdAt DateTime @default(now())
+
+  memberships Membership[]
+}
+
+/// role: ADMINISTRADOR | MORADOR
+model Membership {
+  id           String    @id @default(cuid())
+  condominioId String
+  userId       String
+  fracaoId     String?
+  role         String    @default("MORADOR")
+  joinedAt     DateTime  @default(now())
+  leftAt       DateTime?
+
+  condominio         Condominio       @relation(fields: [condominioId], references: [id], onDelete: Cascade)
+  user               User             @relation(fields: [userId], references: [id])
+  fracao             Fracao?          @relation(fields: [fracaoId], references: [id])
+  reembolsosMarcados ImputacaoExtra[] @relation("ReembolsadaPor")
+  presencas          Presenca[]
+  auditLogs          AuditLog[]
+
+  @@unique([condominioId, userId])
+  @@index([condominioId])
+  @@index([userId])
+}
+
+model Convite {
+  id           String    @id @default(cuid())
+  condominioId String
+  email        String
+  fracaoId     String?
+  role         String    @default("MORADOR")
+  tokenHash    String    @unique
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  condominio Condominio @relation(fields: [condominioId], references: [id], onDelete: Cascade)
+
+  @@index([condominioId])
+  @@index([email])
+}
+
+// ============================================================
+// Quotas
+// ============================================================
+
+/// modo: VALOR_UNICO | PERMILAGEM | MANUAL
+model ConfiguracaoQuota {
+  id               String    @id @default(cuid())
+  condominioId     String
+  modo             String
+  valorUnicoCents  Int?
+  valoresPorFracao String? // JSON: { fracaoId: cents }
+  vigenteDesde     DateTime
+  vigenteAte       DateTime?
+  createdAt        DateTime  @default(now())
+
+  condominio Condominio @relation(fields: [condominioId], references: [id], onDelete: Cascade)
+
+  @@index([condominioId, vigenteDesde])
+}
+
+/// estado: PENDENTE | PAGA | EM_ATRASO
+model QuotaMensal {
+  id              String    @id @default(cuid())
+  condominioId    String
+  fracaoId        String
+  ano             Int
+  mes             Int
+  valorBaseCents  Int
+  estado          String    @default("PENDENTE")
+  pagaEm          DateTime?
+  comprovativoUrl String?
+  correcaoMotivo  String?
+  corrigidaEm     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  condominio Condominio       @relation(fields: [condominioId], references: [id], onDelete: Cascade)
+  fracao     Fracao           @relation(fields: [fracaoId], references: [id])
+  imputacoes ImputacaoExtra[]
+
+  @@unique([fracaoId, ano, mes])
+  @@index([condominioId, ano, mes])
+  @@index([condominioId, estado])
+}
+
+// ============================================================
+// Grandes Despesas + Imputação Extra (derramas)
+// ============================================================
+
+/// modoRateio: IGUAL | PERMILAGEM
+/// estado: RASCUNHO | EM_VOTACAO | APROVADA | REJEITADA | EXECUTADA | ANULADA
+model GrandeDespesa {
+  id              String    @id @default(cuid())
+  condominioId    String
+  titulo          String
+  descricao       String
+  valorTotalCents Int
+  numeroMeses     Int
+  mesInicial      Int
+  anoInicial      Int
+  modoRateio      String    @default("IGUAL")
+  estado          String    @default("RASCUNHO")
+  decisaoId       String?   @unique
+  executadaEm     DateTime?
+  valorFinalCents Int?
+  notaExecucao    String?
+  anuladaEm       DateTime?
+  anuladaMotivo   String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  condominio Condominio       @relation(fields: [condominioId], references: [id], onDelete: Cascade)
+  decisao    Decisao?         @relation(fields: [decisaoId], references: [id])
+  imputacoes ImputacaoExtra[]
+
+  @@index([condominioId, estado])
+}
+
+/// estado: PENDENTE | APLICADA | ANULADA
+model ImputacaoExtra {
+  id               String    @id @default(cuid())
+  grandeDespesaId  String
+  fracaoId         String
+  quotaMensalId    String?
+  mesAplicacao     Int
+  anoAplicacao     Int
+  valorCents       Int
+  prestacaoActual  Int
+  prestacoesTotal  Int
+  estado           String    @default("PENDENTE")
+
+  // v2.1 — tracking de reembolso pós-anulação
+  reembolsadaEm    DateTime?
+  reembolsadaNotas String?
+  reembolsadaPor   String?
+
+  grandeDespesa       GrandeDespesa @relation(fields: [grandeDespesaId], references: [id], onDelete: Cascade)
+  fracao              Fracao        @relation(fields: [fracaoId], references: [id])
+  quotaMensal         QuotaMensal?  @relation(fields: [quotaMensalId], references: [id])
+  reembolsoMembership Membership?   @relation("ReembolsadaPor", fields: [reembolsadaPor], references: [id])
+  createdAt           DateTime      @default(now())
+
+  @@index([fracaoId, anoAplicacao, mesAplicacao])
+  @@index([grandeDespesaId])
+  @@index([grandeDespesaId, estado, reembolsadaEm])
+}
+
+// ============================================================
+// Despesas Correntes
+// ============================================================
+
+model DespesaCorrente {
+  id              String    @id @default(cuid())
+  condominioId    String
+  descricao       String
+  valorCents      Int
+  data            DateTime
+  categoria       String?
+  comprovativoUrl String?
+  anuladaEm       DateTime?
+  anuladaMotivo   String?
+  createdAt       DateTime  @default(now())
+
+  condominio Condominio @relation(fields: [condominioId], references: [id], onDelete: Cascade)
+
+  @@index([condominioId, data])
+}
+
+// ============================================================
+// Reuniões
+// ============================================================
+
+/// estado: AGENDADA | REALIZADA | CANCELADA
+model Reuniao {
+  id           String    @id @default(cuid())
+  condominioId String
+  titulo       String
+  data         DateTime
+  local        String?
+  ordemDoDia   String
+  estado       String    @default("AGENDADA")
+  actaTexto    String?
+  publicadaEm  DateTime?
+  createdAt    DateTime  @default(now())
+
+  condominio Condominio @relation(fields: [condominioId], references: [id], onDelete: Cascade)
+  decisoes   Decisao[]
+  presencas  Presenca[]
+
+  @@index([condominioId, data])
+}
+
+/// tipo: GENERICA | GRANDE_DESPESA
+/// resultado: APROVADO | REJEITADO | ADIADO | null
+model Decisao {
+  id        String   @id @default(cuid())
+  reuniaoId String
+  tipo      String   @default("GENERICA")
+  titulo    String
+  descricao String?
+  resultado String?
+  createdAt DateTime @default(now())
+
+  reuniao       Reuniao        @relation(fields: [reuniaoId], references: [id], onDelete: Cascade)
+  grandeDespesa GrandeDespesa?
+
+  @@index([reuniaoId])
+}
+
+/// rsvp: CONFIRMADO | AUSENTE | TALVEZ | null
+model Presenca {
+  id           String  @id @default(cuid())
+  reuniaoId    String
+  membershipId String
+  presente     Boolean @default(false)
+  rsvp         String?
+
+  reuniao    Reuniao    @relation(fields: [reuniaoId], references: [id], onDelete: Cascade)
+  membership Membership @relation(fields: [membershipId], references: [id])
+
+  @@unique([reuniaoId, membershipId])
+}
+
+// ============================================================
+// Ocorrências
+// ============================================================
+
+/// estado: ABERTA | EM_ANALISE | RESOLVIDA | INACTIVA
+model Ocorrencia {
+  id                String   @id @default(cuid())
+  condominioId      String
+  autorMembershipId String
+  titulo            String
+  descricao         String
+  estado            String   @default("ABERTA")
+  fotosUrls         String?
+  ultimoUpdate      DateTime @default(now())
+  createdAt         DateTime @default(now())
+
+  condominio Condominio @relation(fields: [condominioId], references: [id], onDelete: Cascade)
+
+  @@index([condominioId, estado])
+}
+
+// ============================================================
+// Audit Log
+// ============================================================
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  condominioId String
+  membershipId String?
+  action       String
+  entityType   String?
+  entityId     String?
+  payload      String?
+  createdAt    DateTime @default(now())
+
+  condominio Condominio  @relation(fields: [condominioId], references: [id], onDelete: Cascade)
+  membership Membership? @relation(fields: [membershipId], references: [id])
+
+  @@index([condominioId, createdAt])
+}
