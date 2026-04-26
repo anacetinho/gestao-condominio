@@ -1,0 +1,46 @@
+2026-04-25 22:40:50.381 | 🔍 Waiting for database to be ready...
+2026-04-25 22:40:50.382 | Connection to db (172.18.0.2) 5432 port [tcp/postgresql] succeeded!
+2026-04-25 22:40:50.383 | ✅ Database is ready!
+2026-04-25 22:40:50.383 | 🚀 Running database migrations...
+2026-04-25 22:40:56.401 | Prisma schema loaded from prisma/schema.prisma
+2026-04-25 22:40:56.406 | Datasource "db": PostgreSQL database "condominio", schema "public" at "db:5432"
+2026-04-25 22:40:56.460 | 
+2026-04-25 22:40:56.460 | 1 migration found in prisma/migrations
+2026-04-25 22:40:56.460 | 
+2026-04-25 22:40:56.515 | Applying migration `20260425000000_init`
+2026-04-25 22:40:56.824 | 
+2026-04-25 22:40:56.825 | The following migration(s) have been applied:
+2026-04-25 22:40:56.825 | 
+2026-04-25 22:40:56.825 | migrations/
+2026-04-25 22:40:56.825 |   └─ 20260425000000_init/
+2026-04-25 22:40:56.825 |     └─ migration.sql
+2026-04-25 22:40:56.825 |       
+2026-04-25 22:40:56.825 | All migrations have been successfully applied.
+2026-04-25 22:40:56.846 | npm notice
+2026-04-25 22:40:56.846 | npm notice New major version of npm available! 10.8.2 -> 11.13.0
+2026-04-25 22:40:56.846 | npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.13.0
+2026-04-25 22:40:56.846 | npm notice To update run: npm install -g npm@11.13.0
+2026-04-25 22:40:56.846 | npm notice
+2026-04-25 22:40:56.862 | 🌱 Seeding database (if needed)...
+2026-04-25 22:40:58.030 | Running seed command `tsx prisma/seed.ts` ...
+2026-04-25 22:40:58.382 | Seeding…
+2026-04-25 22:40:58.486 | Seed concluído. Faça login com admin@exemplo.pt
+2026-04-25 22:40:58.508 | 
+2026-04-25 22:40:58.508 | 🌱  The seed command has been executed.
+2026-04-25 22:40:58.564 | ┌─────────────────────────────────────────────────────────┐
+2026-04-25 22:40:58.564 | │  Update available 5.22.0 -> 7.8.0                       │
+2026-04-25 22:40:58.564 | │                                                         │
+2026-04-25 22:40:58.564 | │  This is a major update - please follow the guide at    │
+2026-04-25 22:40:58.564 | │  https://pris.ly/d/major-version-upgrade                │
+2026-04-25 22:40:58.564 | │                                                         │
+2026-04-25 22:40:58.564 | │  Run the following to update                            │
+2026-04-25 22:40:58.564 | │    npm i --save-dev prisma@latest                       │
+2026-04-25 22:40:58.564 | │    npm i @prisma/client@latest                          │
+2026-04-25 22:40:58.564 | └─────────────────────────────────────────────────────────┘
+2026-04-25 22:40:58.585 | 🎉 Starting application...
+2026-04-25 22:40:58.860 |    ▲ Next.js 15.0.3
+2026-04-25 22:40:58.861 |    - Local:        http://localhost:3000
+2026-04-25 22:40:58.861 |    - Network:      http://0.0.0.0:3000
+2026-04-25 22:40:58.861 | 
+2026-04-25 22:40:58.861 |  ✓ Starting...
+2026-04-25 22:40:58.919 |  ✓ Ready in 63ms
